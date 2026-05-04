@@ -16,16 +16,21 @@ func RespondWithError(w http.ResponseWriter, code int, msg string, err error) {
 	type errorResponse struct {
 		Error string `json:"error"`
 	}
+
+	RespondWithJson(w, code, errorResponse{
+		Error: msg,
+	})
 }
 
 func RespondWithJson(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
+
 	dat, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error Marshaling Json: %s", err)
 		w.WriteHeader(500)
 		return
 	}
-	w.WriteHeader(200)
+	w.WriteHeader(code)
 	w.Write(dat)
 }

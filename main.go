@@ -1,14 +1,22 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync/atomic"
+
+	"github.com/Y716/chirpy/internal/database"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	database       database.Queries
+	environment    string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -26,19 +34,25 @@ func (c *apiConfig) printMetrics(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(template))
 }
 
-func (c *apiConfig) resetMetrics(w http.ResponseWriter, req *http.Request) {
-	c.fileserverHits.Store(0)
-
-	w.WriteHeader(200)
-}
-
 func main() {
+	godotenv.Load()
+
+	dbURL := os.Getenv("DB_URL")
+	env := os.Getenv("PLATFORM")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Printf("Error getting database: %v\n", err)
+	}
+	dbQueries := database.New(db)
+
 	mux := http.NewServeMux()
 
 	fileServer := http.FileServer(http.Dir("."))
 
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
+		database:       *dbQueries,
+		environment:    env,
 	}
 
 	fileHandler := http.StripPrefix("/app", fileServer)
@@ -52,9 +66,11 @@ func main() {
 	})
 
 	mux.HandleFunc("GET /admin/metrics", apiCfg.printMetrics)
-	mux.HandleFunc("POST /admin/reset", apiCfg.resetMetrics)
+	mux.HandleFunc("POST /admin/reset", apiCfg.handlerDeleteAllUsers)
 
-	mux.HandleFunc("POST /api/validate_chirp", handlerChirpsValidate)
+	mux.HandleFunc("POST /api/chirps", handlerChirpsValidate)
+
+	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
 
 	server := http.Server{
 		Handler: mux,
