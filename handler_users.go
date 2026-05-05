@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -46,7 +45,6 @@ func (apiCfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Reques
 }
 
 func (apiCfg *apiConfig) handlerDeleteAllUsers(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("Environment: %s", apiCfg.environment)
 	if apiCfg.environment != "dev" {
 		RespondWithError(w, 403, "Forbidden", nil)
 		return
