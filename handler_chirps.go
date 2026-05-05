@@ -93,6 +93,36 @@ func (apiCfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Requ
 	RespondWithJson(w, 200, returnVal)
 }
 
+func (apiCfg *apiConfig) handlerGetOneChirp(w http.ResponseWriter, r *http.Request) {
+	type returnBody struct {
+		Id         uuid.UUID `json:"id"`
+		Created_at time.Time `json:"created_at"`
+		Updated_at time.Time `json:"updated_at"`
+		Body       string    `json:"body"`
+		UserID     uuid.UUID `json:"user_id"`
+	}
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Error Parsing chirp ID", err)
+		return
+	}
+
+	chirp, err := apiCfg.database.GetOneChirp(r.Context(), chirpID)
+	if err != nil {
+		RespondWithError(w, 404, "Not Found", err)
+		return
+	}
+
+	RespondWithJson(w, 200, returnBody{
+		Id:         chirp.ID,
+		Created_at: chirp.CreatedAt,
+		Updated_at: chirp.UpdatedAt,
+		Body:       chirp.Body,
+		UserID:     chirp.UserID,
+	})
+
+}
+
 func censorProfanity(s string) string {
 	profanity := []string{"kerfuffle", "sharbert", "fornax"}
 
