@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Y716/chirpy/internal/auth"
 	"github.com/Y716/chirpy/internal/database"
 	"github.com/google/uuid"
 )
@@ -33,6 +34,18 @@ func (apiCfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Couldn't get token", err)
+		return
+	}
+
+	id, err := auth.ValidateJWT(token, apiCfg.jwtSecret)
+	if err != nil {
+		RespondWithError(w, 401, "Unathorized", err)
+		return
+	}
+
 	const maxChirpLength = 140
 	if len(params.Body) > maxChirpLength {
 		RespondWithError(w, 400, "Chirp is too long", nil)
@@ -43,7 +56,7 @@ func (apiCfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Reque
 
 	args := database.CreateChirpParams{
 		Body:   cleanedString,
-		UserID: params.UserID,
+		UserID: id,
 	}
 
 	chirp, err := apiCfg.database.CreateChirp(r.Context(), args)

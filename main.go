@@ -17,6 +17,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	database       database.Queries
 	environment    string
+	jwtSecret      string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -39,6 +40,8 @@ func main() {
 
 	dbURL := os.Getenv("DB_URL")
 	env := os.Getenv("PLATFORM")
+	jwtSecret := os.Getenv("JWTSECRET")
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Printf("Error getting database: %v\n", err)
@@ -53,6 +56,7 @@ func main() {
 		fileserverHits: atomic.Int32{},
 		database:       *dbQueries,
 		environment:    env,
+		jwtSecret:      jwtSecret,
 	}
 
 	fileHandler := http.StripPrefix("/app", fileServer)
@@ -73,6 +77,7 @@ func main() {
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetOneChirp)
 
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+	mux.HandleFunc("POST /api/login", apiCfg.handlerLoginUser)
 
 	server := http.Server{
 		Handler: mux,
