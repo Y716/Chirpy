@@ -150,11 +150,6 @@ func (apiCfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if r.Header == nil {
-		RespondWithError(w, 401, "Unathorized", err)
-		return
-	}
-
 	accessToken, err := auth.GetBearerToken(r.Header)
 	if err != nil || accessToken == "badToken" || accessToken == "" {
 		RespondWithError(w, 401, "Unathorized", err)

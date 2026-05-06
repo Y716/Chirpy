@@ -38,7 +38,6 @@ func (apiCfg *apiConfig) handlerRefreshToken(w http.ResponseWriter, r *http.Requ
 }
 
 func (apiCfg *apiConfig) handlerRevokeToken(w http.ResponseWriter, r *http.Request) {
-	// TODO: Handle Refresh Token and give a new token to the user
 	token_string := r.Header.Get("Authorization")
 	tokenSlices := strings.Split(token_string, " ")
 

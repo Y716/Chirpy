@@ -136,6 +136,46 @@ func (apiCfg *apiConfig) handlerGetOneChirp(w http.ResponseWriter, r *http.Reque
 
 }
 
+func (apiCfg *apiConfig) handlerDeleteOneChirp(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		RespondWithError(w, 400, "Error Parsing chirp ID", err)
+		return
+	}
+
+	accessToken, err := auth.GetBearerToken(r.Header)
+	if err != nil || accessToken == "badToken" || accessToken == "" {
+		RespondWithError(w, 401, "Unathorized", err)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(accessToken, apiCfg.jwtSecret)
+	if err != nil {
+		RespondWithError(w, 401, "Unathorized", err)
+		return
+	}
+
+	chirpData, err := apiCfg.database.GetOneChirp(r.Context(), chirpID)
+	if err != nil {
+		RespondWithError(w, 404, "Not Found", err)
+		return
+	}
+
+	if userId != chirpData.UserID {
+		RespondWithError(w, 403, "Forbidden", err)
+		return
+	}
+
+	err = apiCfg.database.DeleteOneChirp(r.Context(), chirpID)
+	if err != nil {
+		RespondWithError(w, 404, "Chirp not found", err)
+		return
+	}
+
+	w.WriteHeader(204)
+
+}
+
 func censorProfanity(s string) string {
 	profanity := []string{"kerfuffle", "sharbert", "fornax"}
 
