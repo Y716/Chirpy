@@ -128,6 +128,74 @@ func (apiCfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request
 
 }
 
+func (apiCfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	type returnBody struct {
+		Id         uuid.UUID `json:"id"`
+		Created_at time.Time `json:"created_at"`
+		Updated_at time.Time `json:"updated_at"`
+		Email      string    `json:"email"`
+	}
+
+	params := parameters{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&params)
+
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	if r.Header == nil {
+		RespondWithError(w, 401, "Unathorized", err)
+		return
+	}
+
+	accessToken, err := auth.GetBearerToken(r.Header)
+	if err != nil || accessToken == "badToken" || accessToken == "" {
+		RespondWithError(w, 401, "Unathorized", err)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(accessToken, apiCfg.jwtSecret)
+	if err != nil {
+		RespondWithError(w, 401, "Unathorized", err)
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Couldn't hash password", err)
+		return
+	}
+
+	args := database.UpdateAUserParams{
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+		ID:             userID,
+	}
+
+	updatedUserData, err := apiCfg.database.UpdateAUser(r.Context(), args)
+	if err != nil {
+		RespondWithError(w, 401, "Couldn't update user", err)
+		return
+	}
+
+	returnVal := returnBody{
+		Id:         updatedUserData.ID,
+		Created_at: updatedUserData.CreatedAt,
+		Updated_at: updatedUserData.UpdatedAt,
+		Email:      updatedUserData.Email,
+	}
+
+	RespondWithJson(w, 200, returnVal)
+
+}
+
 func (apiCfg *apiConfig) handlerDeleteAllUsers(w http.ResponseWriter, r *http.Request) {
 	if apiCfg.environment != "dev" {
 		RespondWithError(w, 403, "Forbidden", nil)
