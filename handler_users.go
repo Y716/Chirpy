@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -60,17 +61,17 @@ func (apiCfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Reques
 
 func (apiCfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email            string  `json:"email"`
-		Password         string  `json:"password"`
-		ExpiresInSeconds float64 `json:"expired_in_seconds"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	type returnBody struct {
-		Id         uuid.UUID `json:"id"`
-		Created_at time.Time `json:"created_at"`
-		Updated_at time.Time `json:"updated_at"`
-		Email      string    `json:"email"`
-		Token      string    `json:"token"`
+		Id            uuid.UUID `json:"id"`
+		Created_at    time.Time `json:"created_at"`
+		Updated_at    time.Time `json:"updated_at"`
+		Email         string    `json:"email"`
+		Token         string    `json:"token"`
+		Refresh_Token string    `json:"refresh_token"`
 	}
 
 	params := parameters{}
@@ -79,9 +80,6 @@ func (apiCfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
-	}
-	if params.ExpiresInSeconds == 0 || params.ExpiresInSeconds > 60 {
-		params.ExpiresInSeconds = 60
 	}
 
 	user, err := apiCfg.database.GetUserByEmail(r.Context(), params.Email)
@@ -96,18 +94,34 @@ func (apiCfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	token, err := auth.MakeJWT(user.ID, apiCfg.jwtSecret, time.Duration(params.ExpiresInSeconds)*time.Second)
+	token, err := auth.MakeJWT(user.ID, apiCfg.jwtSecret, time.Duration(1)*time.Hour)
 	if err != nil {
 		RespondWithError(w, 401, "Unable to make JWT Token", err)
 		return
 	}
 
+	refresh_token := auth.MakeRefreshToken()
+
+	args := database.CreateRefreshTokenParams{
+		Token:     refresh_token,
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(60 * 24 * time.Hour),
+		RevokedAt: sql.NullTime{},
+	}
+
+	refreshTokenData, err := apiCfg.database.CreateRefreshToken(r.Context(), args)
+	if err != nil {
+		RespondWithError(w, 401, "Unable to make Refresh Token", err)
+		return
+	}
+
 	returnVal := returnBody{
-		Id:         user.ID,
-		Created_at: user.CreatedAt,
-		Updated_at: user.UpdatedAt,
-		Email:      user.Email,
-		Token:      token,
+		Id:            user.ID,
+		Created_at:    user.CreatedAt,
+		Updated_at:    user.UpdatedAt,
+		Email:         user.Email,
+		Token:         token,
+		Refresh_Token: refreshTokenData.Token,
 	}
 
 	RespondWithJson(w, 200, returnVal)
