@@ -97,17 +97,12 @@ func (q *Queries) UpdateAUser(ctx context.Context, arg UpdateAUserParams) (User,
 
 const upgradeUserToRed = `-- name: UpgradeUserToRed :one
 UPDATE users
-SET is_chirpy_red = $1
-WHERE id = $2 RETURNING id, created_at, updated_at, email, hashed_password, is_chirpy_red
+SET is_chirpy_red = true
+WHERE id = $1 RETURNING id, created_at, updated_at, email, hashed_password, is_chirpy_red
 `
 
-type UpgradeUserToRedParams struct {
-	IsChirpyRed bool
-	ID          uuid.UUID
-}
-
-func (q *Queries) UpgradeUserToRed(ctx context.Context, arg UpgradeUserToRedParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, upgradeUserToRed, arg.IsChirpyRed, arg.ID)
+func (q *Queries) UpgradeUserToRed(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRowContext(ctx, upgradeUserToRed, id)
 	var i User
 	err := row.Scan(
 		&i.ID,

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/Y716/chirpy/internal/auth"
@@ -12,11 +11,13 @@ import (
 )
 
 func (apiCfg *apiConfig) handlerRefreshToken(w http.ResponseWriter, r *http.Request) {
-	// TODO: Handle Refresh Token and give a new token to the user
-	token_string := r.Header.Get("Authorization")
-	tokenSlices := strings.Split(token_string, " ")
+	userToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		RespondWithError(w, 401, "Unathorized", err)
+		return
+	}
 
-	tokenData, err := apiCfg.database.GetUserFromRefreshToken(r.Context(), tokenSlices[1])
+	tokenData, err := apiCfg.database.GetUserFromRefreshToken(r.Context(), userToken)
 	if err != nil || time.Now().After(tokenData.ExpiresAt) || tokenData.RevokedAt.Valid != false {
 		fmt.Println(tokenData.RevokedAt.Valid != true)
 		RespondWithError(w, 401, "Couldn't get token", err)
@@ -38,10 +39,13 @@ func (apiCfg *apiConfig) handlerRefreshToken(w http.ResponseWriter, r *http.Requ
 }
 
 func (apiCfg *apiConfig) handlerRevokeToken(w http.ResponseWriter, r *http.Request) {
-	token_string := r.Header.Get("Authorization")
-	tokenSlices := strings.Split(token_string, " ")
+	userToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		RespondWithError(w, 401, "Unathorized", err)
+		return
+	}
 
-	tokenData, err := apiCfg.database.GetUserFromRefreshToken(r.Context(), tokenSlices[1])
+	tokenData, err := apiCfg.database.GetUserFromRefreshToken(r.Context(), userToken)
 	if err != nil || time.Now().After(tokenData.ExpiresAt) || tokenData.RevokedAt.Valid != false {
 		RespondWithError(w, 401, "Couldn't get token", err)
 		return

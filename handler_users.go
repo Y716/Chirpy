@@ -18,10 +18,11 @@ func (apiCfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Reques
 	}
 
 	type returnBody struct {
-		Id         uuid.UUID `json:"id"`
-		Created_at time.Time `json:"created_at"`
-		Updated_at time.Time `json:"updated_at"`
-		Email      string    `json:"email"`
+		Id          uuid.UUID `json:"id"`
+		Created_at  time.Time `json:"created_at"`
+		Updated_at  time.Time `json:"updated_at"`
+		Email       string    `json:"email"`
+		IsChirpyRed bool      `json:"is_chirpy_red"`
 	}
 
 	params := parameters{}
@@ -50,10 +51,11 @@ func (apiCfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Reques
 	}
 
 	returnVal := returnBody{
-		Id:         user.ID,
-		Created_at: user.CreatedAt,
-		Updated_at: user.UpdatedAt,
-		Email:      user.Email,
+		Id:          user.ID,
+		Created_at:  user.CreatedAt,
+		Updated_at:  user.UpdatedAt,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	}
 
 	RespondWithJson(w, 201, returnVal)
@@ -72,6 +74,7 @@ func (apiCfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request
 		Email         string    `json:"email"`
 		Token         string    `json:"token"`
 		Refresh_Token string    `json:"refresh_token"`
+		IsChirpyRed   bool      `json:"is_chirpy_red"`
 	}
 
 	params := parameters{}
@@ -120,6 +123,7 @@ func (apiCfg *apiConfig) handlerLoginUser(w http.ResponseWriter, r *http.Request
 		Created_at:    user.CreatedAt,
 		Updated_at:    user.UpdatedAt,
 		Email:         user.Email,
+		IsChirpyRed:   user.IsChirpyRed,
 		Token:         token,
 		Refresh_Token: refreshTokenData.Token,
 	}
@@ -135,10 +139,11 @@ func (apiCfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Reques
 	}
 
 	type returnBody struct {
-		Id         uuid.UUID `json:"id"`
-		Created_at time.Time `json:"created_at"`
-		Updated_at time.Time `json:"updated_at"`
-		Email      string    `json:"email"`
+		Id          uuid.UUID `json:"id"`
+		Created_at  time.Time `json:"created_at"`
+		Updated_at  time.Time `json:"updated_at"`
+		Email       string    `json:"email"`
+		IsChirpyRed bool      `json:"is_chirpy_red"`
 	}
 
 	params := parameters{}
@@ -181,14 +186,62 @@ func (apiCfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, r *http.Reques
 	}
 
 	returnVal := returnBody{
-		Id:         updatedUserData.ID,
-		Created_at: updatedUserData.CreatedAt,
-		Updated_at: updatedUserData.UpdatedAt,
-		Email:      updatedUserData.Email,
+		Id:          updatedUserData.ID,
+		Created_at:  updatedUserData.CreatedAt,
+		Updated_at:  updatedUserData.UpdatedAt,
+		Email:       updatedUserData.Email,
+		IsChirpyRed: updatedUserData.IsChirpyRed,
 	}
 
 	RespondWithJson(w, 200, returnVal)
 
+}
+
+func (apiCfg *apiConfig) handlerUpgradeUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID string `json:"user_id"`
+		} `json:"data"`
+	}
+
+	params := parameters{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&params)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	userAPIKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		RespondWithError(w, 401, "Unathorized", err)
+		return
+	}
+
+	if userAPIKey != apiCfg.polkaKey {
+		RespondWithError(w, 401, "Unathorized", err)
+		return
+	}
+
+	if params.Event != "user.upgraded" {
+		RespondWithError(w, 204, "", err)
+		return
+	}
+
+	userId, err := uuid.Parse(params.Data.UserID)
+	if err != nil {
+		RespondWithError(w, 400, "Unable to parse userId", err)
+		return
+	}
+
+	_, err = apiCfg.database.UpgradeUserToRed(r.Context(), userId)
+	if err != nil {
+		RespondWithError(w, 404, "Couldn't upgrade User to Red", err)
+		return
+	}
+
+	w.WriteHeader(204)
 }
 
 func (apiCfg *apiConfig) handlerDeleteAllUsers(w http.ResponseWriter, r *http.Request) {

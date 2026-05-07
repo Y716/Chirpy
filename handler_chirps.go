@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,7 +37,7 @@ func (apiCfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Reque
 
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, "Couldn't get token", err)
+		RespondWithError(w, 401, "Unathorized", err)
 		return
 	}
 
@@ -86,12 +87,32 @@ func (apiCfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Requ
 		UserID     uuid.UUID `json:"user_id"`
 	}
 
-	chirps, err := apiCfg.database.GetAllChirps(r.Context())
-	if err != nil {
-		RespondWithError(w, http.StatusInternalServerError, "Couldn't get chirps", err)
-		return
-	}
+	author_id := r.URL.Query().Get("author_id")
+	sortQuery := r.URL.Query().Get("sort")
 
+	chirps := []database.Chirp{}
+
+	if author_id != "" {
+		authorID, err := uuid.Parse(author_id)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, "Error Parsing chirp ID", err)
+			return
+		}
+
+		chirps, err = apiCfg.database.GetAllChirpsFromOneUser(r.Context(), authorID)
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, "Couldn't get chirps", err)
+			return
+		}
+
+	} else {
+		err := error(nil)
+		chirps, err = apiCfg.database.GetAllChirps(r.Context())
+		if err != nil {
+			RespondWithError(w, http.StatusInternalServerError, "Couldn't get chirps", err)
+			return
+		}
+	}
 	returnVal := []returnBody{}
 	for _, chirp := range chirps {
 		returnVal = append(returnVal, returnBody{
@@ -103,7 +124,12 @@ func (apiCfg *apiConfig) handlerGetAllChirps(w http.ResponseWriter, r *http.Requ
 		})
 	}
 
+	if sortQuery == "desc" {
+		sort.Slice(returnVal, func(i, j int) bool { return returnVal[i].Created_at.After(returnVal[j].Created_at) })
+	}
+
 	RespondWithJson(w, 200, returnVal)
+
 }
 
 func (apiCfg *apiConfig) handlerGetOneChirp(w http.ResponseWriter, r *http.Request) {

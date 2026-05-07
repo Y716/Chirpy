@@ -22,5 +22,5 @@ WHERE id = $3 RETURNING *;
 
 -- name: UpgradeUserToRed :one
 UPDATE users
-SET is_chirpy_red = $1
-WHERE id = $2 RETURNING *;
+SET is_chirpy_red = true
+WHERE id = $1 RETURNING *;
